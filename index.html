@@ -190,11 +190,11 @@
       ctx.textBaseline = 'middle';
       ctx.fillText(priceText, canvas.width / 2, canvas.height * 0.46, canvas.width * 0.9);
 
-      // バーコード(下段、小さく横長)
+      // バーコード(下段、小さく横長)。CODE128固定(EAN13等はチェックデジット不一致で失敗しやすいため)
       const barcodeCanvas = document.createElement('canvas');
       try {
         JsBarcode(barcodeCanvas, item.sku, {
-          format: item.sku.length === 13 ? 'EAN13' : (item.sku.length === 12 ? 'UPC' : 'CODE128'),
+          format: 'CODE128',
           width: 1.5,
           height: Math.round(canvas.height * 0.28),
           displayValue: true,
@@ -294,7 +294,7 @@
         labelType: 1, // LabelType.WithGaps(ギャップ紙、B1標準)
       });
       await printTask.printInit();
-      const encoded = ImageEncoder.encodeCanvas(canvas);
+      const encoded = ImageEncoder.encodeCanvas(canvas, 'left'); // 50x30mmラベル用に90度回転
       await printTask.printPage(encoded, quantity);
       await printTask.waitForPageFinished();
       await printTask.waitForFinished();
