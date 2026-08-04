@@ -171,8 +171,11 @@
     // ============================================================
     function buildLabelCanvas(item) {
       const canvas = document.getElementById('workCanvas');
-      canvas.width = LABEL_WIDTH_PX;
-      canvas.height = LABEL_HEIGHT_PX;
+      // 【重要】このライブラリは画像送信時に縦横が入れ替わる挙動を確認したため、
+      // あらかじめキャンバス自体を縦横入れ替えて作成している(内容のレイアウトはcanvas.width/heightを
+      // 参照しているので、そのまま流用できる)
+      canvas.width = LABEL_HEIGHT_PX;
+      canvas.height = LABEL_WIDTH_PX;
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#fff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -191,19 +194,23 @@
       ctx.fillText(priceText, canvas.width / 2, canvas.height * 0.46, canvas.width * 0.9);
 
       // バーコード(下段、小さく横長)。CODE128固定(EAN13等はチェックデジット不一致で失敗しやすいため)
+      // 線が細いと白黒2値化(印刷用エンコード)で消えてしまうことがあるため、線幅を太めにし、
+      // 縮小描画時の補間(ぼかし)を無効にしてクッキリした黒/白のまま転写する
       const barcodeCanvas = document.createElement('canvas');
       try {
         JsBarcode(barcodeCanvas, item.sku, {
           format: 'CODE128',
-          width: 1.5,
-          height: Math.round(canvas.height * 0.28),
+          width: 3,
+          height: Math.round(canvas.width * 0.28),
           displayValue: true,
-          fontSize: Math.round(canvas.height * 0.09),
+          fontSize: Math.round(canvas.width * 0.09),
           margin: 0,
         });
         const bw = canvas.width * 0.9;
         const bh = bw * (barcodeCanvas.height / barcodeCanvas.width);
+        ctx.imageSmoothingEnabled = false;
         ctx.drawImage(barcodeCanvas, (canvas.width - bw) / 2, canvas.height * 0.68, bw, Math.min(bh, canvas.height * 0.3));
+        ctx.imageSmoothingEnabled = true;
       } catch (e) {
         ctx.font = Math.round(canvas.height * 0.1) + 'px sans-serif';
         ctx.fillText('JAN: ' + item.sku, canvas.width / 2, canvas.height * 0.85);
@@ -294,7 +301,7 @@
         labelType: 1, // LabelType.WithGaps(ギャップ紙、B1標準)
       });
       await printTask.printInit();
-      const encoded = ImageEncoder.encodeCanvas(canvas, 'left'); // 50x30mmラベル用に90度回転
+      const encoded = ImageEncoder.encodeCanvas(canvas);
       await printTask.printPage(encoded, quantity);
       await printTask.waitForPageFinished();
       await printTask.waitForFinished();
