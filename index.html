@@ -75,7 +75,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/JsBarcode/3.11.5/JsBarcode.all.min.js"></script>
 
   <!-- niimbluelib: NIIMBOTプリンター通信用。UMD形式で読み込み、window.niimbluelibとして使う -->
-  <script src="https://cdn.jsdelivr.net/npm/@mmote/niimbluelib@0.0.1-alpha.41-node/dist/umd/niimbluelib.min.js"></script>
+  <!-- 【注意】alpha.41-nodeはブラウザで動かないビルド(Node.js専用コードが混入)だったため、alpha.40を使用 -->
+  <script src="https://cdn.jsdelivr.net/npm/@mmote/niimbluelib@0.0.1-alpha.40/dist/umd/niimbluelib.min.js"></script>
 
   <script type="module">
     // ============================================================
