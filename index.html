@@ -74,12 +74,15 @@
   <!-- JsBarcode: バーコード生成用(CDN、動作確認済みの安定ライブラリ) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/JsBarcode/3.11.5/JsBarcode.all.min.js"></script>
 
+  <!-- niimbluelib: NIIMBOTプリンター通信用。UMD形式で読み込み、window.niimbluelibとして使う -->
+  <script src="https://cdn.jsdelivr.net/npm/@mmote/niimbluelib@0.0.1-alpha.41-node/dist/umd/niimbluelib.min.js"></script>
+
   <script type="module">
     // ============================================================
     // 【要設定】抽出シート(印刷リスト)を「ウェブに公開(CSV)」した時のURLに書き換えてください
     // スプレッドシート→ファイル→共有→ウェブに公開→対象シート「印刷リスト」を選択→CSV形式→公開
     // ============================================================
-    const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyBXInhI0PKdpMt47tifYK4pRzEx5fFqiEPGeWcNMzU-0Dql9C_x4yPnfvb4SwpcmvXH4xrFY3zv81/pub?gid=1488311876&single=true&output=csv';
+    const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRyBXInhI0PKdpMt47tifYK4pRzEx5fFqiEPGeWcNMzU-0Dql9C_x4yPnfvb4SwpcmvXH4xrFY3zv81/pubhtml?gid=1488311876&single=true';
 
     // ラベルサイズ(mm)。B1の印字解像度は203dpi相当として計算(必要に応じて調整してください)
     const LABEL_WIDTH_MM = 50;
@@ -216,21 +219,16 @@
 
     // ============================================================
     // プリンター接続・印刷(niimbluelib使用)
-    // 【重要・要検証】このライブラリはAlpha版でAPIが変わる可能性があります。
-    // 以下はREADME/公式サンプルを元にした実装ですが、実機での動作確認・
-    // 微調整が必要です。うまく動かない場合は、まず以下を確認してください。
-    //   - ブラウザのコンソール(F12)に出るエラーメッセージ
-    //   - https://github.com/MultiMote/niimbluelib の example/main.js
-    //   - https://github.com/MultiMote/niimblue (本家Webアプリ)のソース内、
-    //     実際にB1へ接続・印刷している箇所
+    // npm上のパッケージを実際にインストールしてソースコードを確認した上での実装です。
+    // ただしAlpha版ライブラリのため、実機での最終確認はお願いします。
     // ============================================================
-    let NiimbotBluetoothClient, NiimbotSerialClient;
-    try {
-      const niimbluelib = await import('https://cdn.jsdelivr.net/npm/@mmote/niimbluelib@0.0.1-alpha.41/dist/index.mjs');
-      NiimbotBluetoothClient = niimbluelib.NiimbotBluetoothClient;
-      NiimbotSerialClient = niimbluelib.NiimbotSerialClient;
-    } catch (e) {
-      setStatus('niimbluelibの読み込みに失敗しました。CDNのURL/バージョンを確認してください。\n' + e.message);
+    let NiimbotBluetoothClient, NiimbotSerialClient, ImageEncoder;
+    if (window.niimbluelib) {
+      NiimbotBluetoothClient = window.niimbluelib.NiimbotBluetoothClient;
+      NiimbotSerialClient = window.niimbluelib.NiimbotSerialClient;
+      ImageEncoder = window.niimbluelib.ImageEncoder;
+    } else {
+      setStatus('niimbluelibの読み込みに失敗しました(CDNから取得できていません)');
     }
 
     window.connectBluetooth = async function connectBluetooth() {
@@ -283,18 +281,20 @@
       setStatus('印刷完了(' + printItems.length + '件)');
     };
 
-    // 【要検証】このライブラリの実際の印刷メソッド名・引数は
-    // バージョンによって変わる可能性があります。エラーが出た場合はここを修正してください。
-    async function printCanvasToPrinter(canvas) {
-      if (typeof printerClient.printImage === 'function') {
-        await printerClient.printImage(canvas, { density: 3, labelType: 1 });
-      } else if (typeof printerClient.createPrintTask === 'function') {
-        const task = printerClient.createPrintTask({ totalPages: 1, density: 3, labelType: 1 });
-        await task.printImage(canvas);
-        await task.end();
-      } else {
-        throw new Error('印刷用メソッドが見つかりません(ライブラリのバージョン差異の可能性)');
-      }
+    // B1用の印刷タスクを作成し、1枚印刷する
+    async function printCanvasToPrinter(canvas, quantity) {
+      quantity = quantity || 1;
+      const printTask = printerClient.abstraction.newPrintTask('B1', {
+        totalPages: quantity,
+        density: 3,
+        labelType: 1, // LabelType.WithGaps(ギャップ紙、B1標準)
+      });
+      await printTask.printInit();
+      const encoded = ImageEncoder.encodeCanvas(canvas);
+      await printTask.printPage(encoded, quantity);
+      await printTask.waitForPageFinished();
+      await printTask.waitForFinished();
+      await printerClient.abstraction.printEnd();
     }
 
     // 初回自動読み込み
